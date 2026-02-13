@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caderno Offline</title>
+
+<!-- Manifest e tema para PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff1a1a">
+
+<style>
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#f4f4f4;
+ color:#000;
+ display:flex;
+ justify-content:center;
+ align-items:center;
+ height:100vh;
+ transition:0.3s;
+}
+.tema-preto{background:#000;color:#fff;}
+.tela{display:none;width:90%;max-width:500px;}
+.ativa{display:block;}
+button{
+ width:100%;
+ padding:15px;
+ margin:10px 0;
+ font-size:18px;
+ border:none;
+ border-radius:8px;
+ background:#ff1a1a;
+ color:white;
+}
+button:active{transform:scale(0.98);}
+textarea,input,select{
+ width:100%;
+ padding:12px;
+ margin:10px 0;
+ font-size:16px;
+ border-radius:8px;
+ border:1px solid #ccc;
+}
+.tema-preto textarea,
+.tema-preto input,
+.tema-preto select{
+ background:#111;
+ color:#fff;
+ border:1px solid #333;
+}
+textarea{height:150px;resize:none;}
+.lista-item{
+ background:white;
+ padding:15px;
+ margin:8px 0;
+ border-radius:8px;
+ display:flex;
+ align-items:center;
+}
+.tema-preto .lista-item{background:#111;}
+.item-titulo{flex:1;cursor:pointer;}
+.btn-acao{width:45px;margin-left:5px;padding:10px;font-size:18px;}
+.btn-excluir{background:#f44336;}
+.voltar{background:#555;}
+h2{text-align:center;}
+</style>
+</head>
+<body>
+
+<div id="selecionarNotas" class="tela">
+<h2>Selecionar Notas</h2>
+<div id="listaSelecao"></div>
+<button onclick="confirmarAdicionarNotas()">Salvar Alterações</button>
+<button class="voltar" onclick="abrirDicionario()">Voltar</button>
+</div>
+
+<div id="home" class="tela ativa">
+<button onclick="abrirAdicionar()">Adicionar</button>
+<button onclick="abrirDicionario()">Dicionário</button>
+<button onclick="abrirConfiguracoes()">Configurações</button>
+</div>
+
+<div id="adicionar" class="tela">
+<h2 id="tituloTela">Nova Nota</h2>
+<input type="text" id="titulo">
+<textarea id="conteudo"></textarea>
+<button id="btnSalvar" onclick="salvarNota()">Salvar</button>
+<button class="voltar" onclick="voltarHome()">Voltar</button>
+</div>
+
+<div id="dicionario" class="tela">
+<h2>Dicionário</h2>
+<div id="listaNotas"></div>
+<button class="voltar" onclick="voltarHome()">Voltar</button>
+</div>
+
+<div id="visualizar" class="tela">
+<h2 id="verTitulo"></h2>
+<p id="verConteudo"></p>
+<button class="voltar" onclick="abrirDicionario()">Voltar</button>
+</div>
+
+<div id="configuracoes" class="tela">
+<h2>Configurações</h2>
+
+<h3>Tema</h3>
+<select id="temaSelect">
+<option value="claro">Claro</option>
+<option value="preto">Preto</option>
+<option value="sistema">Sistema</option>
+</select>
+<button onclick="salvarTema()">Salvar Tema</button>
+
+<h3>Backup Configurações</h3>
+<button onclick="exportarConfiguracoes()">Exportar</button>
+<button onclick="document.getElementById('importConfig').click()">Importar</button>
+<input type="file" id="importConfig" hidden onchange="importarConfiguracoes(event)">
+
+<h3>Backup Dicionário</h3>
+<button onclick="exportarDicionario()">Exportar</button>
+<button onclick="document.getElementById('importDict').click()">Importar</button>
+<input type="file" id="importDict" hidden onchange="importarDicionario(event)">
+
+<button class="voltar" onclick="voltarHome()">Voltar</button>
+</div>
+
+<script>
+let notaEditandoId=null;
+let grupoSelecionadoId=null;
+
+/* UTIL */
+const getNotas=()=>JSON.parse(localStorage.getItem("notas"))||[];
+const getGrupos=()=>JSON.parse(localStorage.getItem("grupos"))||[];
+const salvarDados=(notas,grupos)=>{
+ localStorage.setItem("notas",JSON.stringify(notas));
+ localStorage.setItem("grupos",JSON.stringify(grupos));
+};
+
+function trocarTela(id){
+ document.querySelectorAll('.tela').forEach(t=>t.classList.remove('ativa'));
+ document.getElementById(id).classList.add('ativa');
+}
+function voltarHome(){trocarTela("home");}
+
+/* NOTAS */
+function abrirAdicionar(){
+ notaEditandoId=null;
+ titulo.value="";
+ conteudo.value="";
+ document.getElementById("tituloTela").innerText="Nova Nota";
+ document.getElementById("btnSalvar").innerText="Salvar";
+ trocarTela("adicionar");
+}
+function salvarNota(){
+ let t=titulo.value.trim();
+ let c=conteudo.value.trim();
+ if(!t||!c)return alert("Preencha tudo");
+
+ let notas=getNotas();
+ if(notaEditandoId){
+  let nota=notas.find(n=>n.id===notaEditandoId);
+  nota.titulo=t;
+  nota.conteudo=c;
+ }else{
+  notas.push({id:Date.now(),titulo:t,conteudo:c});
+ }
+ salvarDados(notas,getGrupos());
+ trocarTela("home");
+}
+function editarNota(id){
+ let nota=getNotas().find(n=>n.id===id);
+ notaEditandoId=id;
+ titulo.value=nota.titulo;
+ conteudo.value=nota.conteudo;
+ document.getElementById("tituloTela").innerText="Editar Nota";
+ document.getElementById("btnSalvar").innerText="Atualizar";
+ trocarTela("adicionar");
+}
+function excluirNota(id){
+ if(!confirm("Excluir nota?"))return;
+ let notas=getNotas().filter(n=>n.id!==id);
+ let grupos=getGrupos();
+ grupos.forEach(g=>g.notas=g.notas.filter(n=>n!==id));
+ salvarDados(notas,grupos);
+ carregarNotas();
+}
+function abrirNota(id){
+ let nota=getNotas().find(n=>n.id===id);
+ verTitulo.innerText=nota.titulo;
+ verConteudo.innerText=nota.conteudo;
+ trocarTela("visualizar");
+}
+
+/* GRUPOS */
+function criarGrupo(){
+ let nome=prompt("Nome do grupo:");
+ if(!nome)return;
+ let grupos=getGrupos();
+ grupos.push({id:Date.now(),nome,notas:[]});
+ salvarDados(getNotas(),grupos);
+ carregarNotas();
+}
+function editarGrupo(id){
+ let grupos=getGrupos();
+ let grupo=grupos.find(g=>g.id===id);
+ let novo=prompt("Novo nome:",grupo.nome);
+ if(!novo)return;
+ grupo.nome=novo;
+ salvarDados(getNotas(),grupos);
+ carregarNotas();
+}
+function deletarGrupo(id){
+ let opcao=confirm("OK=Deletar notas também\nCancelar=Só remover grupo");
+ let grupos=getGrupos();
+ let notas=getNotas();
+ let grupo=grupos.find(g=>g.id===id);
+ if(opcao) notas=notas.filter(n=>!grupo.notas.includes(n.id));
+ grupos=grupos.filter(g=>g.id!==id);
+ salvarDados(notas,grupos);
+ carregarNotas();
+}
+function adicionarNotaAoGrupo(id){
+ grupoSelecionadoId=id;
+ let notas=getNotas().sort((a,b)=>a.titulo.localeCompare(b.titulo));
+ let grupo=getGrupos().find(g=>g.id===id);
+ listaSelecao.innerHTML="";
+ notas.forEach(n=>{
+  let div=document.createElement("div");
+  div.className="lista-item";
+  let cb=document.createElement("input");
+  cb.type="checkbox";
+  cb.value=n.id;
+  if(grupo.notas.includes(n.id))cb.checked=true;
+  let span=document.createElement("span");
+  span.innerText=n.titulo;
+  span.style.marginLeft="10px";
+  div.appendChild(cb);
+  div.appendChild(span);
+  listaSelecao.appendChild(div);
+ });
+ trocarTela("selecionarNotas");
+}
+function confirmarAdicionarNotas(){
+ let grupos=getGrupos();
+ let grupo=grupos.find(g=>g.id===grupoSelecionadoId);
+ grupo.notas=[];
+ document.querySelectorAll("#listaSelecao input").forEach(cb=>{
+  if(cb.checked)grupo.notas.push(Number(cb.value));
+ });
+ salvarDados(getNotas(),grupos);
+ abrirDicionario();
+}
+
+/* DICIONÁRIO */
+function abrirDicionario(){carregarNotas();trocarTela("dicionario");}
+function carregarNotas(){
+ let lista=listaNotas;
+ lista.innerHTML="";
+ let notas=getNotas().sort((a,b)=>a.titulo.localeCompare(b.titulo));
+ let grupos=getGrupos().sort((a,b)=>a.nome.localeCompare(b.nome));
+
+ let btn=document.createElement("button");
+ btn.innerText="➕ Criar Grupo";
+ btn.onclick=criarGrupo;
+ lista.appendChild(btn);
+
+ grupos.forEach(g=>{
+  let div=document.createElement("div");
+  div.className="lista-item";
+  div.style.flexDirection="column";
+
+  let header=document.createElement("div");
+  header.style.display="flex";
+
+  let strong=document.createElement("strong");
+  strong.innerText="📁 "+g.nome;
+  strong.style.flex="1";
+
+  let add=document.createElement("button");
+  add.innerText="+";
+  add.className="btn-acao";
+  add.onclick=()=>adicionarNotaAoGrupo(g.id);
+
+  let edit=document.createElement("button");
+  edit.innerText="✏";
+  edit.className="btn-acao";
+  edit.onclick=()=>editarGrupo(g.id);
+
+  let del=document.createElement("button");
+  del.innerText="🗑";
+  del.className="btn-acao btn-excluir";
+  del.onclick=()=>deletarGrupo(g.id);
+
+  header.appendChild(strong);
+  header.appendChild(add);
+  header.appendChild(edit);
+  header.appendChild(del);
+  div.appendChild(header);
+
+  g.notas.forEach(id=>{
+   let nota=notas.find(n=>n.id===id);
+   if(!nota)return;
+   let sub=document.createElement("div");
+   sub.style.marginLeft="15px";
+   sub.innerText="• "+nota.titulo;
+   sub.onclick=()=>abrirNota(nota.id);
+   div.appendChild(sub);
+  });
+
+  lista.appendChild(div);
+ });
+
+ let notasEmGrupo=grupos.flatMap(g=>g.notas);
+
+ notas.forEach(n=>{
+  if(notasEmGrupo.includes(n.id))return;
+  let div=document.createElement("div");
+  div.className="lista-item";
+  let span=document.createElement("span");
+  span.className="item-titulo";
+  span.innerText=n.titulo;
+  span.onclick=()=>abrirNota(n.id);
+
+  let edit=document.createElement("button");
+  edit.innerText="✏";
+  edit.className="btn-acao";
+  edit.onclick=()=>editarNota(n.id);
+
+  let del=document.createElement("button");
+  del.innerText="🗑";
+  del.className="btn-acao btn-excluir";
+  del.onclick=()=>excluirNota(n.id);
+
+  div.appendChild(span);
+  div.appendChild(edit);
+  div.appendChild(del);
+  lista.appendChild(div);
+ });
+}
+
+/* TEMA */
+function salvarTema(){
+ let tema=temaSelect.value;
+ localStorage.setItem("tema",tema);
+ aplicarTema(tema);
+}
+function aplicarTema(tema){
+ document.body.classList.remove("tema-preto");
+ if(tema==="preto")document.body.classList.add("tema-preto");
+ else if(tema==="sistema" && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document.body.classList.add("tema-preto");
+}
+function abrirConfiguracoes(){
+ temaSelect.value=localStorage.getItem("tema")||"claro";
+ trocarTela("configuracoes");
+}
+window.onload=()=>aplicarTema(localStorage.getItem("tema")||"claro");
+
+/* EXPORT / IMPORT INTELIGENTE */
+function exportarConfiguracoes(){
+ baixar("config.json",JSON.stringify({tema:localStorage.getItem("tema")}));
+}
+function importarConfiguracoes(e){
+ let file=e.target.files[0];
+ if(!file)return;
+ let r=new FileReader();
+ r.onload=()=>{
+  let data=JSON.parse(r.result);
+  if(data.tema){
+   localStorage.setItem("tema",data.tema);
+   aplicarTema(data.tema);
+  }
+ };
+ r.readAsText(file);
+}
+function exportarDicionario(){
+ baixar("dicionario.json",JSON.stringify({notas:getNotas(),grupos:getGrupos()}));
+}
+function importarDicionario(e){
+ let file=e.target.files[0];
+ if(!file)return;
+ let r=new FileReader();
+ r.onload=()=>{
+  let data=JSON.parse(r.result);
+  let notas=getNotas();
+  let grupos=getGrupos();
+
+  data.notas.forEach(n=>{
+   if(!notas.some(ex=>ex.titulo===n.titulo && ex.conteudo===n.conteudo))
+    notas.push(n);
+  });
+
+  data.grupos.forEach(g=>{
+   let existente=grupos.find(ex=>ex.nome===g.nome);
+   if(existente){
+    g.notas.forEach(id=>{
+     if(!existente.notas.includes(id))
+      existente.notas.push(id);
+    });
+   }else{
+    grupos.push(g);
+   }
+  });
+
+  salvarDados(notas,grupos);
+  alert("Importado com sucesso!");
+ };
+ r.readAsText(file);
+}
+function baixar(nome,conteudo){
+ let blob=new Blob([conteudo],{type:"application/json"});
+ let a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download=nome;
+ a.click();
+}
+
+/* PWA - Service Worker */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js')
+    .then(() => console.log('Service Worker registrado!'))
+    .catch(err => console.log('Erro no Service Worker:', err));
+}
+</script>
+
+</body>
+</html>
