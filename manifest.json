@@ -1,6 +1,6 @@
 {
-  "name": "Caderno Offline",
-  "short_name": "Caderno",
+  "name": "Caderno de Notas",
+  "short_name": "Notas",
   "description": "Um caderno offline para notas e grupos",
   "start_url": "./index.html",
   "display": "standalone",
@@ -17,5 +17,8 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "id": "MyNotas",
+  "dir": "auto",
+  "lang": "pt"
 }
